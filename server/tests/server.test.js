@@ -1,0 +1,133 @@
+
+const expect = require('expect');
+const request = require('supertest');
+const {ObjectId} = require('mongodb')
+
+
+const {app} = require('./../server');
+const {Todo} = require('./../models/todo');
+
+
+const todos = [{
+    _id: new ObjectId(),
+    text:'First test todo'
+},{
+    _id: new ObjectId(),
+    text: 'Second test todo'
+}];
+
+
+// beforeEach((done)=>{
+//     Todo.remove({}).then(()=>done());
+// });
+
+
+ beforeEach((done)=>{
+     Todo.remove({}).then(()=> {
+
+         return Todo.insertMany(todos);
+
+     }).then(()=> done());
+ });
+
+
+describe('Post /todos',()=>{
+
+    it('should create a new todo',(done)=>{
+
+        var text = 'test todo text';
+
+        request(app).
+        post('/todos').
+        send({text}).
+        expect(200).
+        expect((res)=> {expect(res.body.text).toBe(text)}).
+            end((err,res)=>{
+
+            if(err){
+                return done(err);
+            }
+
+            Todo.find({text}).then((todos)=>{
+                expect(todos.length).toBe(1);
+                expect(todos[0].text).toBe(text);
+                done();
+
+            }).catch((e)=> done(e));
+        });
+
+});
+
+    it('should not create a new Todo if you send empty text',(done)=>{
+        request(app)
+       .post('/todos')
+       .send({})
+       .expect(400)
+       .expect((res)=>{expect(res.body.errors.text.name).toBe('ValidatorError')})
+
+        .end((err,res)=>{
+       if(err){
+           return done(err);
+       }
+
+            Todo.find().then((todos)=>{
+                expect(todos.length).toBe(2);
+                done();
+            }).catch((e)=> done(e));
+
+        })
+    });
+});
+
+describe('GET  all /todos',()=>{
+
+    it('should GET all todos',(done)=>{
+
+        request(app)
+            .get('/todos')
+            .expect(200)
+            .expect((res)=>{
+             expect(res.body.todos.length).toBe(2);
+            })
+
+            .end(done);
+
+
+    });
+});
+
+
+describe('GET   /todos/:id',()=>{
+
+    it('should return specific todo',(done)=>{
+        request(app)
+            .get(`/todos/${todos[0]._id}`)
+            .expect(200)
+            .expect((res)=>{
+                expect(res.body.text).toBe(todos[0].text);
+            })
+            .end(done);
+    });
+
+
+
+    it('should return 404 if todos not found',(done)=>{
+        var hexId = new ObjectId();
+        request(app)
+            .get(`/todos/${hexId}`)
+            .expect(404)
+            .end(done);
+    });
+
+
+    it('should return 404 for non-object ids',(done)=>{
+
+        request(app)
+            .get('/todos/1234')
+            .expect(404)
+            .end(done);
+    });
+
+
+
+});
